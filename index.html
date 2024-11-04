@@ -4,8 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Plex Status</title>
-	<link rel="icon" type="image/png" href="favicon.png">
-<style>
+    <link rel="icon" type="image/png" href="favicon.png">
+    <style>
+        /* Your existing CSS for styling the page */
         * {
             margin: 0;
             padding: 0;
@@ -13,35 +14,32 @@
             font-family: Arial, sans-serif;
         }
 
-        /* Page Layout */
         body {
-            background-color: #121212; /* Darker background */
-            color: #dcdcdc; /* Softer light text */
+            background-color: #121212;
+            color: #dcdcdc;
             display: flex;
             flex-direction: column;
             align-items: center;
             padding: 20px;
         }
-		
+
         h1, h2 {
-            color: #82aaff; /* Muted blue accent */
+            color: #82aaff;
             margin-bottom: 10px;
         }
 
-        /* Chart Container */
         #chartContainer {
             width: 100%;
             max-width: 900px;
             height: 30vh;
             margin-bottom: 30px;
-            background: #1e1e1e; /* Dark gray for contrast */
+            background: #1e1e1e;
             padding: 15px;
             border: 1px solid #333;
             border-radius: 8px;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
         }
 
-        /* Table Styling */
         table {
             width: 100%;
             max-width: 900px;
@@ -57,8 +55,8 @@
         }
 
         th {
-            background-color: #3a3f47; /* Dark gray headers */
-            color: #82aaff; /* Soft blue text */
+            background-color: #3a3f47;
+            color: #82aaff;
             font-weight: bold;
         }
 
@@ -66,7 +64,6 @@
             background-color: #2a2a2a;
         }
 
-        /* Filter Dropdowns */
         select {
             width: 100%;
             padding: 8px;
@@ -78,50 +75,17 @@
             margin-bottom: 10px;
         }
 
-        select:hover {
-            border-color: #82aaff;
-        }
-
-        /* Footer Styling */
         footer {
             margin-top: 20px;
             font-size: 0.9em;
             color: #666;
         }
-		
-		tr:nth-child(odd) {
-			background-color: #1f1f1f;
-		}
-		
-		a {
-			color: #82aaff; /* Initial link color */
-			text-decoration: none;
-		}
-
-		a:visited {
-			color: #82aaff; /* Same color as unclicked link */
-		}
-
-		a:hover {
-			color: #a2c8ff; /* lighter color on hover */
-		}
-
-		a:active {
-			color: #a2c8ff; /* lighter color when clicked */
-		}
     </style>
-    <!-- Include Chart.js version 3.7.1 -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
-    
-    <!-- Include Moment.js and Chart.js Date Adapter for Moment.js -->
-    <script src="https://cdn.jsdelivr.net/npm/moment@2.29.1"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-moment@1.0.0"></script>
 </head>
 <body>
 
 <h1>Uptime and Outage Tracker</h1>
 <h2><span id="statusIcon">🟢</span> <a href="https://plex.hoganv.com/">plex.hoganv.com</a></h2>
-
 
 <div id="chartContainer">
     <canvas id="statusChart"></canvas>
@@ -146,259 +110,112 @@
 </table>
 
 <footer>
-    <p id="footerText"></p>
+    <p id="footerText">&copy; <span id="year"></span> Hogan VanderMeulen</p>
 </footer>
 
 <script>
-// Set the footer text with the copyright symbol, current year, and name
-const currentYear = new Date().getFullYear();
-document.getElementById('footerText').innerHTML = `&copy; ${currentYear} Hogan VanderMeulen`;
+    let logData = []; // Store all rows after fetching CSV
+    const chunkSize = 50; // Number of rows to load each time
+    let currentChunk = 0; // Track current "page" of data
 
-// Function to update status icon with page link
-async function updateStatusIcon() {
-    try {
-        // Fetch the CSV data with a cache-busting query string
-        const response = await fetch(`PlexLog.csv?cacheBuster=${new Date().getTime()}`);
-        if (!response.ok) throw new Error(`Network response was not ok (status: ${response.status})`);
-        const data = await response.text();
+    document.getElementById('year').textContent = new Date().getFullYear();
 
-        // Parse the CSV data to get the most recent log entry
-        const rows = data.trim().split('\n').slice(1); // Skip the header
-        const latestRow = rows[rows.length - 1].split(',');
-        const [rawTimestamp, status, action] = latestRow.map(entry => entry.trim());
+    async function updateStatusIcon() {
+        try {
+            const response = await fetch(`PlexLog.csv?cacheBuster=${new Date().getTime()}`);
+            if (!response.ok) throw new Error(`Network response was not ok (status: ${response.status})`);
+            const data = await response.text();
 
-        // Remove the day and reformat the timestamp
-        const timestampWithoutDay = rawTimestamp.slice(4);
-        const [datePart, timePart] = timestampWithoutDay.split(' ');
-        const [month, day, year] = datePart.split('/');
-        const isoTimestamp = `${year}-${month}-${day}T${timePart}`;
-        const latestTimestamp = new Date(isoTimestamp);
+            const rows = data.trim().split('\n').slice(1); // Skip header
+            const latestRow = rows[rows.length - 1].split(',');
+            const [rawTimestamp, status, action] = latestRow.map(entry => entry.trim());
 
-        if (isNaN(latestTimestamp.getTime())) return;
+            const timestampWithoutDay = rawTimestamp.slice(4);
+            const [datePart, timePart] = timestampWithoutDay.split(' ');
+            const [month, day, year] = datePart.split('/');
+            const isoTimestamp = `${year}-${month}-${day}T${timePart}`;
+            const latestTimestamp = new Date(isoTimestamp);
 
-        // Calculate the time difference in minutes
-        const currentTime = new Date();
-        const timeDifference = (currentTime - latestTimestamp) / 1000 / 60;
+            if (isNaN(latestTimestamp.getTime())) return;
 
-        // Update the icon based on conditions
-        const isRunning = status === "Running";
-        const isRecent = timeDifference <= 10;
-        const statusIcon = document.getElementById("statusIcon");
-        statusIcon.textContent = (isRunning && isRecent) ? "🟢" : "🔴";
-        
-    } catch (error) {
-        console.error("Error fetching or processing the CSV:", error);
-    }
-}
+            const currentTime = new Date();
+            const timeDifference = (currentTime - latestTimestamp) / 1000 / 60;
 
+            const isRunning = status === "Running";
+            const isRecent = timeDifference <= 10;
+            document.getElementById("statusIcon").textContent = (isRunning && isRecent) ? "🟢" : "🔴";
 
-// Function to fetch CSV data and parse it
-async function fetchCSV() {
-    try {
-        // Fetch CSV data with cache-busting query string
-        const response = await fetch(`PlexLog.csv?cacheBuster=${new Date().getTime()}`);
-        if (!response.ok) throw new Error(`Network response was not ok (status: ${response.status})`);
-        const data = await response.text();
-        const rows = data.split('\n').slice(1); // Skip header row
-        return rows.map(row => {
-            const [Timestamp, Status, Action] = row.split(',').map(value => value ? value.trim() : "");
-            return { Timestamp, Status, Action };
-        });
-    } catch (error) {
-        console.error("Error fetching or parsing the CSV file:", error);
-    }
-}
-
-
-function populateDropdowns(logData) {
-    const timestampDropdown = document.getElementById('timestampFilter');
-    const statusDropdown = document.getElementById('statusFilter');
-    const actionDropdown = document.getElementById('actionFilter');
-
-    // Extract the date in MM/DD/YYYY format and ignore the time
-    const dates = new Set(logData.map(entry => {
-        const parts = entry.Timestamp.split(' '); // Split by spaces
-        const dateOnly = parts.length > 1 ? parts[1] : ""; // Take only the MM/DD/YYYY part
-        return dateOnly;
-    }));
-    
-    const statuses = new Set(logData.map(entry => entry.Status));
-    const actions = new Set(logData.map(entry => entry.Action));
-
-    function addOptions(dropdown, values) {
-        values.forEach(value => {
-            if (value) {
-                const option = document.createElement('option');
-                option.value = value;
-                option.textContent = value;
-                dropdown.appendChild(option);
-            }
-        });
+        } catch (error) {
+            console.error("Error fetching or processing the CSV:", error);
+        }
     }
 
-    addOptions(timestampDropdown, dates);
-    addOptions(statusDropdown, statuses);
-    addOptions(actionDropdown, actions);
-}
-
-function filterTable(logData) {
-    const timestampFilter = document.getElementById('timestampFilter').value.toLowerCase();
-    const statusFilter = document.getElementById('statusFilter').value.toLowerCase();
-    const actionFilter = document.getElementById('actionFilter').value.toLowerCase();
-
-    const tbody = document.querySelector('#logTable tbody');
-    tbody.innerHTML = '';
-
-    logData.forEach(entry => {
-        const timestampText = (entry.Timestamp || "").toLowerCase();
-        const statusText = (entry.Status || "").toLowerCase();
-        const actionText = (entry.Action || "").toLowerCase();
-
-        // Use "includes" for timestamp filtering
-        if ((timestampFilter === "" || timestampText.includes(timestampFilter)) &&
-            (statusFilter === "" || statusText === statusFilter) &&
-            (actionFilter === "" || actionText === actionFilter)) {
-            
-            const row = document.createElement('tr');
-            Object.values(entry).forEach(text => {
-                const cell = document.createElement('td');
-                cell.textContent = text || "";
-                row.appendChild(cell);
+    async function fetchCSV() {
+        try {
+            const response = await fetch(`PlexLog.csv?cacheBuster=${new Date().getTime()}`);
+            if (!response.ok) throw new Error(`Network response was not ok (status: ${response.status})`);
+            const data = await response.text();
+            const rows = data.split('\n').slice(1); // Skip header row
+            logData = rows.map(row => {
+                const [Timestamp, Status, Action] = row.split(',').map(value => value ? value.trim() : "");
+                return { Timestamp, Status, Action };
             });
-            tbody.appendChild(row);
+            filterAndRenderTable(); // Initial render with all data loaded
+        } catch (error) {
+            console.error("Error fetching or parsing the CSV file:", error);
         }
-    });
-}
-
-
-// Populate the table and chart with data
-async function populateTableAndChart() {
-    const logData = await fetchCSV();
-    if (!logData) {
-        console.error("No data available to populate the table.");
-        return;
     }
 
-    populateDropdowns(logData);
-    updateChart(logData);
-	updateStatusIcon(logData);
+    function filterAndRenderTable() {
+        const timestampFilter = document.getElementById('timestampFilter').value.toLowerCase();
+        const statusFilter = document.getElementById('statusFilter').value.toLowerCase();
+        const actionFilter = document.getElementById('actionFilter').value.toLowerCase();
 
-    // Reverse the log data for displaying the latest entries first
-    const tbody = document.querySelector('#logTable tbody');
-    logData.reverse().forEach(entry => {
-        const row = document.createElement('tr');
-        Object.values(entry).forEach(text => {
-            const cell = document.createElement('td');
-            cell.textContent = text || ""; // Handle undefined values
-            row.appendChild(cell);
+        const filteredData = logData.filter(entry => {
+            const timestampText = (entry.Timestamp || "").toLowerCase();
+            const statusText = (entry.Status || "").toLowerCase();
+            const actionText = (entry.Action || "").toLowerCase();
+
+            return (timestampFilter === "" || timestampText.includes(timestampFilter)) &&
+                   (statusFilter === "" || statusText === statusFilter) &&
+                   (actionFilter === "" || actionText === actionFilter);
         });
-        tbody.appendChild(row);
-    });
 
-    document.getElementById('timestampFilter').addEventListener('change', () => filterTable(logData));
-    document.getElementById('statusFilter').addEventListener('change', () => filterTable(logData));
-    document.getElementById('actionFilter').addEventListener('change', () => filterTable(logData));
-}
+        document.querySelector('#logTable tbody').innerHTML = '';
+        currentChunk = 0;
 
-// Function to create and update the histogram chart for the last 30 days
-function updateChart(logData) {
-    // Get today's date and the date 30 days ago
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); // Set time to midnight to ensure consistency
-    const past30Days = new Date(today);
-    past30Days.setDate(today.getDate() - 29); // Go back 29 days, so we have 30 days including today
+        function loadFilteredChunk() {
+            const start = currentChunk * chunkSize;
+            const end = start + chunkSize;
 
-    // Filter data to include only the last 30 days and "Not Running" statuses
-    const filteredData = logData.filter(entry => {
-        const entryDate = new Date(entry.Timestamp);
-        entryDate.setHours(0, 0, 0, 0); // Normalize to midnight to match the dayKey
-        return entry.Status === 'Not Running' && entryDate >= past30Days && entryDate <= today;
-    });
+            filteredData.slice(start, end).forEach(entry => {
+                const row = document.createElement('tr');
+                Object.values(entry).forEach(text => {
+                    const cell = document.createElement('td');
+                    cell.textContent = text || "";
+                    row.appendChild(cell);
+                });
+                document.querySelector('#logTable tbody').prepend(row); // Newest at the top
+            });
 
-    // Consolidate counts by day with exact formatting
-    const countsByDay = {};
-    filteredData.forEach(entry => {
-        const entryDate = new Date(entry.Timestamp);
-        const dayKey = `${entryDate.getFullYear()}-${String(entryDate.getMonth() + 1).padStart(2, '0')}-${String(entryDate.getDate()).padStart(2, '0')}`; // Format as YYYY-MM-DD
+            currentChunk++;
+        }
 
-        countsByDay[dayKey] = (countsByDay[dayKey] || 0) + 1; // Increment count for each occurrence
-    });
+        loadFilteredChunk();
 
-    // Prepare data for the last 30 days (fill missing days with zero counts)
-    const labels = [];
-    const data = [];
-    for (let i = 0; i < 30; i++) {
-        const date = new Date(past30Days);
-        date.setDate(past30Days.getDate() + i);
-        const dayKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-        
-        labels.push(dayKey);
-        data.push(countsByDay[dayKey] || 0); // Use 0 if no "Not Running" statuses on that day
+        window.addEventListener('scroll', () => {
+            if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 100) {
+                loadFilteredChunk();
+            }
+        });
     }
 
-    // Create or update the chart
-    const ctx = document.getElementById('statusChart').getContext('2d');
-    new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: 'Not Running Count',
-                data: data,
-                backgroundColor: 'rgba(255, 99, 132, 0.5)',
-                borderColor: 'rgba(255, 99, 132, 1)',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                x: {
-                    title: { display: true, text: 'Date', color: '#dcdcdc'},
-                    type: 'time',
-                    time: {
-                        unit: 'day',
-                        tooltipFormat: 'MMM d, yyyy'
-                    },
-					ticks: {
-						color: '#dcdcdc' // Lighter color for x-axis tick labels (dates)
-					}
-                },
-                y: {
-                    title: { display: true, text: 'Not Running Count', color: '#dcdcdc'},
-                    beginAtZero: true,
-                    ticks: {
-                        // Force only whole numbers
-                        callback: function(value) {
-                            return Number.isInteger(value) ? value : null; // Only display whole numbers
-                        }
-                    },
-					ticks: {
-						color: '#dcdcdc' // Lighter color for x-axis tick labels (dates)
-					}
-                }
+    document.getElementById('timestampFilter').addEventListener('change', filterAndRenderTable);
+    document.getElementById('statusFilter').addEventListener('change', filterAndRenderTable);
+    document.getElementById('actionFilter').addEventListener('change', filterAndRenderTable);
 
-            },
-            plugins: {
-				legend: {
-					labels: {
-						color: '#dcdcdc' // Set the legend text color to a lighter shade
-					}
-				},
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            return `Not Running Count: ${context.raw}`;
-                        }
-                    }
-                }
-            }
-        }
-    });
-}
-
-populateTableAndChart();
+    fetchCSV(); // Fetch CSV on page load
+    updateStatusIcon(); // Update status icon on page load
 </script>
 
 </body>
