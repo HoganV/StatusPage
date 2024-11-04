@@ -157,8 +157,8 @@ document.getElementById('footerText').innerHTML = `&copy; ${currentYear} Hogan V
 // Function to update status icon with page link
 async function updateStatusIcon() {
     try {
-        // Fetch the CSV data
-        const response = await fetch('PlexLog.csv');
+        // Fetch the CSV data with a cache-busting query string
+        const response = await fetch(`PlexLog.csv?cacheBuster=${new Date().getTime()}`);
         if (!response.ok) throw new Error(`Network response was not ok (status: ${response.status})`);
         const data = await response.text();
 
@@ -191,10 +191,12 @@ async function updateStatusIcon() {
     }
 }
 
+
 // Function to fetch CSV data and parse it
 async function fetchCSV() {
     try {
-        const response = await fetch('PlexLog.csv');
+        // Fetch CSV data with cache-busting query string
+        const response = await fetch(`PlexLog.csv?cacheBuster=${new Date().getTime()}`);
         if (!response.ok) throw new Error(`Network response was not ok (status: ${response.status})`);
         const data = await response.text();
         const rows = data.split('\n').slice(1); // Skip header row
@@ -206,6 +208,7 @@ async function fetchCSV() {
         console.error("Error fetching or parsing the CSV file:", error);
     }
 }
+
 
 function populateDropdowns(logData) {
     const timestampDropdown = document.getElementById('timestampFilter');
